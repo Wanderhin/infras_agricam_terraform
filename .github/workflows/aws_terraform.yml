@@ -28,7 +28,7 @@ env:
 # ─────────────────────────────────────────────────────────────
 jobs:
   scan-secrets:
-    name: "🔍 Scan secrets (Gitleaks)"
+    name: "Scan secrets (Gitleaks)"
     runs-on: ubuntu-latest
     if: github.event_name != 'schedule'
 
@@ -124,7 +124,7 @@ jobs:
   # JOB 5 — TERRAFORM PLAN
   # ─────────────────────────────────────────────────────────────
   plan:
-    name: "📋 Terraform Plan"
+    name: "Terraform Plan"
     runs-on: ubuntu-latest
     needs: [lint, security-scan]
     if: github.event_name != 'schedule'

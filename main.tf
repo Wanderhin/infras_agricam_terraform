@@ -64,11 +64,25 @@ resource "aws_kms_alias" "agricam_logs_kms_alias" {
   target_key_id = aws_kms_key.agricam_logs_kms.key_id
 }
 
-# Clé KMS pour S3 (Correction CKV_AWS_145)
+# Clé KMS pour S3 (Correction CKV_AWS_145 & CKV2_AWS_64)
 resource "aws_kms_key" "agricam_s3_kms" {
   description             = "Cle KMS chiffrement S3 AgriCam ${var.environnement}"
   deletion_window_in_days = 7
   enable_key_rotation     = true
+
+  # Ajout de la policy explicite pour corriger CKV2_AWS_64
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "Enable IAM User Permissions"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+        Action    = "kms:*"
+        Resource  = "*"
+      }
+    ]
+  })
 }
 
 resource "aws_kms_alias" "agricam_s3_kms_alias" {
@@ -88,7 +102,7 @@ resource "aws_vpc" "agricam_vpc" {
   tags                 = { Name = "agricam-vpc-${var.environnement}" }
 }
 
-# Correction CKV2_AWS_12 : Verrouillage du Security Group par défaut du VPC
+# Verrouillage du Security Group par défaut du VPC
 resource "aws_default_security_group" "default" {
   vpc_id = aws_vpc.agricam_vpc.id
   # L'absence de blocs ingress/egress supprime toutes les règles par défaut
@@ -249,7 +263,7 @@ resource "aws_key_pair" "agricam_keypair" {
 }
 
 # =============================================================================
-# IAM EC2 (Correction CKV2_AWS_41)
+# IAM EC2
 # =============================================================================
 
 resource "aws_iam_role" "agricam_ec2_role" {
@@ -282,7 +296,7 @@ resource "aws_instance" "agricam_serveur" {
   subnet_id              = aws_subnet.agricam_subnet.id
   vpc_security_group_ids = [aws_security_group.agricam_sg.id]
   key_name               = aws_key_pair.agricam_keypair.key_name
-  iam_instance_profile   = aws_iam_instance_profile.agricam_ec2_profile.name # CKV2_AWS_41
+  iam_instance_profile   = aws_iam_instance_profile.agricam_ec2_profile.name
   monitoring             = true
 
   metadata_options {
@@ -340,7 +354,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "agricam_s3_chiffr
   bucket = aws_s3_bucket.agricam_stockage.id
   rule {
     apply_server_side_encryption_by_default {
-      kms_master_key_id = aws_kms_key.agricam_s3_kms.arn # CKV_AWS_145
+      kms_master_key_id = aws_kms_key.agricam_s3_kms.arn
       sse_algorithm     = "aws:kms"
     }
     bucket_key_enabled = true
@@ -358,15 +372,18 @@ resource "aws_s3_bucket_logging" "agricam_s3_logging" {
   target_prefix = "access-logs/"
 }
 
-# Lifecycle S3 principal (Correction CKV2_AWS_61)
+# Lifecycle S3 principal (Correction CKV2_AWS_61 & CKV_AWS_300)
 resource "aws_s3_bucket_lifecycle_configuration" "agricam_s3_lifecycle" {
   bucket = aws_s3_bucket.agricam_stockage.id
   rule {
-    id     = "transition-vers-ia"
+    id     = "transition-vers-ia-et-abort"
     status = "Enabled"
     transition {
       days          = 30
       storage_class = "STANDARD_IA"
+    }
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
     }
   }
 }
@@ -394,7 +411,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "agricam_s3_logs_c
   bucket = aws_s3_bucket.agricam_s3_logs.id
   rule {
     apply_server_side_encryption_by_default {
-      kms_master_key_id = aws_kms_key.agricam_s3_kms.arn # CKV_AWS_145
+      kms_master_key_id = aws_kms_key.agricam_s3_kms.arn
       sse_algorithm     = "aws:kms"
     }
     bucket_key_enabled = true
@@ -406,14 +423,17 @@ resource "aws_s3_bucket_versioning" "agricam_s3_logs_versioning" {
   versioning_configuration { status = "Enabled" }
 }
 
-# Lifecycle S3 logs (Correction CKV2_AWS_61)
+# Lifecycle S3 logs (Correction CKV2_AWS_61 & CKV_AWS_300)
 resource "aws_s3_bucket_lifecycle_configuration" "agricam_s3_logs_lifecycle" {
   bucket = aws_s3_bucket.agricam_s3_logs.id
   rule {
-    id     = "expiration-logs"
+    id     = "expiration-logs-et-abort"
     status = "Enabled"
     expiration {
       days = 90
+    }
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
     }
   }
 }
