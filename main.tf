@@ -430,6 +430,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "agricam_s3_logs_lifecycle" {
   rule {
     id     = "expiration-logs-et-abort"
     status = "Enabled"
+    filter {}
     expiration {
       days = 90
     }
