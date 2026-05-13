@@ -1,0 +1,36 @@
+# =============================================================================
+# terraform.tfvars.example — Fichier EXEMPLE à committer dans Git
+# =============================================================================
+# INSTRUCTIONS :
+#   1. Copiez ce fichier : cp terraform.tfvars.example terraform.tfvars
+#   2. Remplissez les vraies valeurs dans terraform.tfvars
+#   3. Ne committez JAMAIS terraform.tfvars (il est dans .gitignore)
+#   4. En CI/CD, les valeurs viennent des secrets GitHub (TF_VAR_*)
+# =============================================================================
+
+# Environnement cible : dev | staging | prod
+environnement = "dev"
+
+# Région AWS — Afrique du Sud
+aws_region = "af-south-1"
+
+# Type d'instance EC2 (t2.micro pour dev, t2.small pour staging/prod)
+type_instance = "t2.micro"
+
+# ID de l'AMI Ubuntu 22.04 LTS pour af-south-1
+# Obtenez-le avec :
+#   aws ec2 describe-images \
+#     --owners 099720109477 \
+#     --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" \
+#     --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
+#     --output text --region af-south-1
+ami_id = "ami-XXXXXXXXXXXXXXXXX"
+
+# Votre IP publique avec masque /32 — obtenez-la avec : curl ifconfig.me
+# Format obligatoire : x.x.x.x/32
+ip_admin = "0.0.0.0/32"
+
+# Clé publique SSH — contenu de votre fichier ~/.ssh/agricam_key.pub
+# Obtenez-la avec : cat ~/.ssh/agricam_key.pub
+# En CI/CD : cette valeur vient du secret GitHub EC2_PUBLIC_KEY
+ec2_public_key = "ssh-rsa AAAA...votre-cle-publique... user@machine"
