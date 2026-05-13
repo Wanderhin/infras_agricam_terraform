@@ -438,3 +438,5 @@ resource "aws_s3_bucket_lifecycle_configuration" "agricam_s3_logs_lifecycle" {
     }
   }
 }
+
+# j'avais d'abord detruit maintenant il faut un push pour relancer mon infra
