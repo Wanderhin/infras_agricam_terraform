@@ -43,7 +43,7 @@ variable "ami_id" {
 variable "ip_admin" {
   description = "IP publique de l'administrateur autorise au SSH (format: x.x.x.x/32)"
   type        = string
-  sensitive   = true   # Masquée dans les logs Terraform
+  sensitive   = true # Masquée dans les logs Terraform
 
   validation {
     condition     = can(regex("^([0-9]{1,3}\\.){3}[0-9]{1,3}/32$", var.ip_admin))
@@ -57,7 +57,7 @@ variable "ip_admin" {
 variable "ec2_public_key" {
   description = "Contenu de la cle publique SSH pour acceder aux instances EC2"
   type        = string
-  sensitive   = true   # Masquée dans les logs Terraform
+  sensitive   = true # Masquée dans les logs Terraform
 
   validation {
     condition     = can(regex("^(ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp256) ", var.ec2_public_key))

@@ -5,7 +5,7 @@
 # =============================================================================
 
 terraform {
-  required_version = "~> 1.7.0"   # Version épinglée — importante pour la reproductibilité
+  required_version = "~> 1.7.0" # Version épinglée — importante pour la reproductibilité
 
   required_providers {
     aws = {
@@ -100,7 +100,7 @@ resource "aws_flow_log" "agricam_vpc_flow_log" {
 
 resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
   name              = "/aws/vpc/agricam-${var.environnement}"
-  retention_in_days = 90   # Conservation 90 jours minimum (conformité)
+  retention_in_days = 90 # Conservation 90 jours minimum (conformité)
 }
 
 resource "aws_iam_role" "flow_log_role" {
@@ -166,7 +166,7 @@ resource "aws_security_group" "agricam_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = [var.ip_admin]    # UNIQUEMENT votre IP — jamais 0.0.0.0/0
+    cidr_blocks = [var.ip_admin] # UNIQUEMENT votre IP — jamais 0.0.0.0/0
     description = "SSH admin uniquement"
   }
 
@@ -192,7 +192,7 @@ resource "aws_security_group" "agricam_sg" {
 
 resource "aws_key_pair" "agricam_keypair" {
   key_name   = "agricam-keypair-${var.environnement}"
-  public_key = var.ec2_public_key   # Vient du secret GitHub EC2_PUBLIC_KEY
+  public_key = var.ec2_public_key # Vient du secret GitHub EC2_PUBLIC_KEY
 }
 
 # =============================================================================
@@ -209,12 +209,12 @@ resource "aws_instance" "agricam_serveur" {
   subnet_id              = aws_subnet.agricam_subnet.id
   vpc_security_group_ids = [aws_security_group.agricam_sg.id]
   key_name               = aws_key_pair.agricam_keypair.key_name
-  monitoring             = true   # Monitoring CloudWatch détaillé (CKV_AWS_126)
+  monitoring             = true # Monitoring CloudWatch détaillé (CKV_AWS_126)
 
   # IMDSv2 obligatoire — empêche les attaques SSRF sur les métadonnées (CKV_AWS_79)
   metadata_options {
     http_endpoint               = "enabled"
-    http_tokens                 = "required"   # "required" = IMDSv2 uniquement
+    http_tokens                 = "required" # "required" = IMDSv2 uniquement
     http_put_response_hop_limit = 1
   }
 
@@ -252,7 +252,7 @@ resource "aws_instance" "agricam_serveur" {
 # =============================================================================
 
 resource "aws_s3_bucket" "agricam_stockage" {
-  bucket = "agricam-${var.environnement}-stockage-camtech-2024-${random_id.bucket_suffix.hex}"
+  bucket = "agricam-${var.environnement}-stockage-camtech-2024-gremmy"
 
   tags = {
     Name = "agricam-stockage-${var.environnement}"
