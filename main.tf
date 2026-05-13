@@ -123,8 +123,8 @@ resource "aws_route_table_association" "agricam_rta" {
 
 resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
   name              = "/aws/vpc/agricam-${var.environnement}"
-  retention_in_days = 365                               # CKV_AWS_338 — 1 an minimum
-  kms_key_id        = aws_kms_key.agricam_logs_kms.arn  # CKV_AWS_158 — chiffrement KMS
+  retention_in_days = 365                              # CKV_AWS_338 — 1 an minimum
+  kms_key_id        = aws_kms_key.agricam_logs_kms.arn # CKV_AWS_158 — chiffrement KMS
 }
 
 resource "aws_flow_log" "agricam_vpc_flow_log" {
