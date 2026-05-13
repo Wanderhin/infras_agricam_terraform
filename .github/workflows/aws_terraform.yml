@@ -252,8 +252,7 @@ jobs:
     needs: [plan]
     if: |
       github.ref == 'refs/heads/master' &&
-      github.event_name == 'push' &&
-      needs.plan.outputs.plan_exit_code == '2'
+      github.event_name == 'push' 
 
     environment:
       name: production
