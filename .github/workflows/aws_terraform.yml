@@ -2,6 +2,7 @@
 # .github/workflows/agricam-terraform.yml
 # Pipeline CI/CD — AgriCam Infrastructure AWS
 # Corrections : Node.js 24, toutes erreurs Checkov résolues dans main.tf
+# corriger les erreurs de sécurité Checkov dans les secret et variables
 # =============================================================================
 
 name: "AgriCam — Terraform CI/CD"
