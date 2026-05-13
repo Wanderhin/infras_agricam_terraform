@@ -378,6 +378,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "agricam_s3_lifecycle" {
   rule {
     id     = "transition-vers-ia-et-abort"
     status = "Enabled"
+    filter {}
     transition {
       days          = 30
       storage_class = "STANDARD_IA"
