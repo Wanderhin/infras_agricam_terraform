@@ -1,11 +1,11 @@
 # =============================================================================
-# outputs.tf — AgriCam Infrastructure AWS
-# Valeurs exposées après terraform apply
+# outputs.tf — AgriCam
+# Mis à jour : ip_publique via Elastic IP (plus map_public_ip_on_launch)
 # =============================================================================
 
 output "ip_publique_serveur" {
-  description = "Adresse IP publique du serveur AgriCam"
-  value       = aws_instance.agricam_serveur.public_ip
+  description = "Adresse IP publique (Elastic IP) du serveur AgriCam"
+  value       = aws_eip.agricam_eip.public_ip
 }
 
 output "nom_bucket_s3" {
@@ -35,11 +35,15 @@ output "id_security_group" {
 
 output "url_application" {
   description = "URL de l'application AgriCam (HTTP)"
-  value       = "http://${aws_instance.agricam_serveur.public_ip}"
+  value       = "http://${aws_eip.agricam_eip.public_ip}"
 }
 
 output "commande_ssh" {
-  description = "Commande SSH pour se connecter au serveur (remplacer le chemin de la clé)"
-  value       = "ssh -i ~/.ssh/agricam_key ubuntu@${aws_instance.agricam_serveur.public_ip}"
-  sensitive   = false
+  description = "Commande SSH pour se connecter au serveur"
+  value       = "ssh -i ~/.ssh/agricam_key ubuntu@${aws_eip.agricam_eip.public_ip}"
+}
+
+output "kms_key_id" {
+  description = "ID de la clé KMS pour CloudWatch Logs"
+  value       = aws_kms_key.agricam_logs_kms.key_id
 }
