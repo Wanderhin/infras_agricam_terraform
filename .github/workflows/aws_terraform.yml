@@ -159,6 +159,7 @@ jobs:
         env:
           TF_VAR_ami_id:          ${{ secrets.TF_VAR_ami_id }}
           TF_VAR_ip_admin:        ${{ secrets.TF_VAR_ip_admin }}
+          TF_VAR_ec2_public_key:  ${{ secrets.EC2_PUBLIC_KEY }}
           TF_VAR_environnement:   ${{ vars.TF_VAR_environnement }}
           TF_VAR_type_instance:   ${{ vars.TF_VAR_type_instance }}
           TF_VAR_aws_region:      ${{ vars.AWS_REGION }}
@@ -288,6 +289,7 @@ jobs:
         env:
           TF_VAR_ami_id:          ${{ secrets.TF_VAR_ami_id }}
           TF_VAR_ip_admin:        ${{ secrets.TF_VAR_ip_admin }}
+          TF_VAR_ec2_public_key:  ${{ secrets.EC2_PUBLIC_KEY }}
           TF_VAR_environnement:   ${{ vars.TF_VAR_environnement }}
           TF_VAR_type_instance:   ${{ vars.TF_VAR_type_instance }}
           TF_VAR_aws_region:      ${{ vars.AWS_REGION }}
@@ -335,6 +337,7 @@ jobs:
         env:
           TF_VAR_ami_id:          ${{ secrets.TF_VAR_ami_id }}
           TF_VAR_ip_admin:        ${{ secrets.TF_VAR_ip_admin }}
+          TF_VAR_ec2_public_key:  ${{ secrets.EC2_PUBLIC_KEY }}
           TF_VAR_environnement:   ${{ vars.TF_VAR_environnement }}
           TF_VAR_type_instance:   ${{ vars.TF_VAR_type_instance }}
           TF_VAR_aws_region:      ${{ vars.AWS_REGION }}
