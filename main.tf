@@ -396,7 +396,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "agricam_s3_lifecycle" {
 resource "aws_s3_bucket" "agricam_s3_logs" {
   # checkov:skip=CKV2_AWS_62:Notifications S3 non requises pour le bucket de logs
   # checkov:skip=CKV_AWS_144:Replication cross-region non requise pour ce projet (TP)
-  bucket = "agricam-${var.environnement}-logs-camtech-2024"
+  bucket = "agricam-${var.environnement}-logs-camtech-2024-tes2"
   tags   = { Name = "agricam-logs-${var.environnement}", Type = "Logs" }
 }
 
