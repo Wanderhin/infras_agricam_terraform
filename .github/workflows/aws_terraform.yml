@@ -1,31 +1,29 @@
 # =============================================================================
 # .github/workflows/agricam-terraform.yml
-# Pipeline CI/CD — AgriCam Infrastructure AWS
-# Corrections : Node.js 24, toutes erreurs Checkov résolues dans main.tf
-# corriger les erreurs de sécurité Checkov dans les secret et variables
+# Pipeline CI/CD GitHub Actions — AgriCam Infrastructure AWS
+# Adapté à votre code exact (main.tf, variables.tf, outputs.tf)
 # =============================================================================
 
 name: "AgriCam — Terraform CI/CD"
 
 on:
   push:
-    branches: [master, deve]
+    branches:
+      - master     # Validation + Plan + Deploy automatique
+      - deve       # Validation + Plan seulement (pas de deploy)
   pull_request:
-    branches: [master]
+    branches:
+      - master     # Validation + Plan + Commentaire PR
   schedule:
-    - cron: '0 2 * * *'
+    - cron: '0 2 * * *'   # Détection de dérive chaque nuit à 2h UTC
 
+# Un seul déploiement à la fois — évite les conflits sur le state S3
 concurrency:
   group: "agricam-terraform-${{ github.ref }}"
   cancel-in-progress: false
 
-# Correction avertissements Node.js 20 → Node.js 24
-# Toutes les actions GitHub (checkout, setup-terraform, etc.) utiliseront Node 24
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 # ─────────────────────────────────────────────────────────────
-# JOB 1 — SCAN DE SECRETS
+# JOB 1 — SCAN DE SECRETS (Gitleaks)
 # ─────────────────────────────────────────────────────────────
 jobs:
   scan-secrets:
@@ -44,11 +42,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+
   # ─────────────────────────────────────────────────────────────
-  # JOB 2 — FORMAT ET VALIDATION SYNTAXIQUE
+  # JOB 2 — FORMAT ET SYNTAXE
   # ─────────────────────────────────────────────────────────────
   validate:
-    name: " Format & Validation syntaxique"
+    name: "Format & Validation syntaxique"
     runs-on: ubuntu-latest
     needs: [scan-secrets]
     if: github.event_name != 'schedule'
@@ -65,17 +64,18 @@ jobs:
       - name: "terraform fmt — Vérification du format"
         run: terraform fmt -check -recursive
 
-      - name: "terraform init — Init local sans backend"
+      - name: "terraform init — Init sans backend"
         run: terraform init -backend=false
 
       - name: "terraform validate — Validation de la cohérence"
         run: terraform validate
 
+
   # ─────────────────────────────────────────────────────────────
   # JOB 3 — LINT (TFLint)
   # ─────────────────────────────────────────────────────────────
   lint:
-    name: " Lint Terraform (TFLint)"
+    name: "Lint Terraform (TFLint)"
     runs-on: ubuntu-latest
     needs: [validate]
 
@@ -96,13 +96,9 @@ jobs:
       - name: Lancer TFLint
         run: tflint --format compact
 
+
   # ─────────────────────────────────────────────────────────────
   # JOB 4 — SCAN DE SÉCURITÉ (Checkov)
-  # Toutes les erreurs sont corrigées dans main.tf :
-  #   - Vraies corrections : KMS, rétention 365j, IAM ciblé,
-  #     map_public_ip=false + EIP, egress restreint
-  #   - Checkov:skip justifiés : port 80 public (web), t2.micro
-  #     sans EBS optimisé, event notifications S3
   # ─────────────────────────────────────────────────────────────
   security-scan:
     name: "Scan sécurité IaC (Checkov)"
@@ -120,6 +116,7 @@ jobs:
           framework: terraform
           output_format: cli
           soft_fail: false
+
 
   # ─────────────────────────────────────────────────────────────
   # JOB 5 — TERRAFORM PLAN
@@ -149,18 +146,22 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ vars.AWS_REGION }}
 
-      - name: "terraform init sans Backend S3"
-        run: terraform init
+      - name: "terraform init — Connexion au backend S3 distant"
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -backend-config="key=agricam/${{ vars.TF_VAR_environnement }}/terraform.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="encrypt=true"
 
-      - name: "terraform plan"
+      - name: "terraform plan — Génération du plan de déploiement"
         id: plan
         env:
-          TF_VAR_ami_id:         ${{ secrets.TF_VAR_ami_id }}
-          TF_VAR_ip_admin:       ${{ secrets.TF_VAR_ip_admin }}
-          TF_VAR_ec2_public_key: ${{ secrets.EC2_PUBLIC_KEY }}
-          TF_VAR_environnement:  ${{ vars.TF_VAR_environnement }}
-          TF_VAR_type_instance:  ${{ vars.TF_VAR_type_instance }}
-          TF_VAR_aws_region:     ${{ vars.AWS_REGION }}
+          TF_VAR_ami_id:          ${{ secrets.TF_VAR_ami_id }}
+          TF_VAR_ip_admin:        ${{ secrets.TF_VAR_ip_admin }}
+          TF_VAR_environnement:   ${{ vars.TF_VAR_environnement }}
+          TF_VAR_type_instance:   ${{ vars.TF_VAR_type_instance }}
+          TF_VAR_aws_region:      ${{ vars.AWS_REGION }}
         run: |
           terraform plan \
             -detailed-exitcode \
@@ -170,26 +171,30 @@ jobs:
           EXIT_CODE=${PIPESTATUS[0]}
           echo "exitcode=$EXIT_CODE" >> $GITHUB_OUTPUT
 
-          if   [ "$EXIT_CODE" = "1" ]; then echo " Erreur dans le plan !"; exit 1
-          elif [ "$EXIT_CODE" = "0" ]; then echo " Aucun changement."
-          elif [ "$EXIT_CODE" = "2" ]; then echo "Changements détectés."
+          if [ "$EXIT_CODE" = "1" ]; then
+            echo "Erreur dans le plan Terraform !"
+            exit 1
+          elif [ "$EXIT_CODE" = "0" ]; then
+            echo "Aucun changement — infrastructure déjà à jour."
+          elif [ "$EXIT_CODE" = "2" ]; then
+            echo "📋 Changements détectés — plan généré avec succès."
           fi
         continue-on-error: true
 
-      - name: Vérifier le code de sortie
+      - name: Vérifier le code de sortie du plan
         run: |
           code="${{ steps.plan.outputs.exitcode }}"
           [ "$code" = "1" ] && exit 1 || exit 0
 
-      - name: Résumé dans GitHub
+      - name: Résumé du plan dans GitHub
         if: always()
         run: |
-          echo "##  Plan Terraform AgriCam — \`${{ vars.TF_VAR_environnement }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "## Plan Terraform AgriCam — \`${{ vars.TF_VAR_environnement }}\`" >> $GITHUB_STEP_SUMMARY
           echo '```hcl' >> $GITHUB_STEP_SUMMARY
           grep -E "^(Plan:|  \+|  -|  ~|No changes|Error)" plan-output.txt >> $GITHUB_STEP_SUMMARY || true
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-      - name: Sauvegarder le plan
+      - name: Sauvegarder le plan comme artefact
         uses: actions/upload-artifact@v4
         with:
           name: "agricam-tfplan-${{ github.sha }}"
@@ -198,8 +203,9 @@ jobs:
             plan-output.txt
           retention-days: 5
 
+
   # ─────────────────────────────────────────────────────────────
-  # JOB 6 — COMMENTAIRE PR
+  # JOB 6 — COMMENTAIRE SUR LA PULL REQUEST
   # ─────────────────────────────────────────────────────────────
   comment-pr:
     name: "Commentaire PR avec le plan"
@@ -221,19 +227,13 @@ jobs:
             const fs = require('fs');
             const plan = fs.readFileSync('plan-output.txt', 'utf8');
             const truncated = plan.length > 55000
-              ? plan.substring(0, 55000) + '\n\n>  Plan tronqué — voir les logs GitHub Actions.'
+              ? plan.substring(0, 55000) + '\n\n> Plan tronqué — voir les logs GitHub Actions.'
               : plan;
             const body = [
-              '##  Plan Terraform AgriCam — `${{ vars.TF_VAR_environnement }}`',
-              '',
-              '<details><summary>Voir le plan complet</summary>',
-              '',
+              '## Plan Terraform AgriCam',
               '```hcl',
               truncated,
               '```',
-              '</details>',
-              '',
-              `*Commit \`${{ github.sha }}\` — ${{ github.actor }}*`
             ].join('\n');
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -242,20 +242,18 @@ jobs:
               body: body
             });
 
+
   # ─────────────────────────────────────────────────────────────
-  # JOB 7 — DÉPLOIEMENT
-  # Approbation manuelle requise via GitHub Environments
+  # JOB 7 — DÉPLOIEMENT (terraform apply)
   # ─────────────────────────────────────────────────────────────
   deploy:
-    name: " Déploiement AWS (terraform apply)"
+    name: "Déploiement AWS (terraform apply)"
     runs-on: ubuntu-latest
     needs: [plan]
+    # S'exécute automatiquement lors d'un push sur master
     if: |
       github.ref == 'refs/heads/master' &&
-      github.event_name == 'push' 
-
-    environment:
-      name: production
+      github.event_name == 'push'
 
     steps:
       - name: Checkout du code
@@ -273,43 +271,38 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ vars.AWS_REGION }}
 
-      - name: "terraform init sans Backend S3"
-        run: terraform init
+      - name: "terraform init — Reconnexion au backend S3 distant"
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -backend-config="key=agricam/${{ vars.TF_VAR_environnement }}/terraform.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="encrypt=true"
 
       - name: Télécharger le plan approuvé
         uses: actions/download-artifact@v4
         with:
           name: "agricam-tfplan-${{ github.sha }}"
 
-      - name: "terraform apply"
+      - name: "terraform apply — Déploiement AgriCam sur AWS"
         env:
-          TF_VAR_ami_id:         ${{ secrets.TF_VAR_ami_id }}
-          TF_VAR_ip_admin:       ${{ secrets.TF_VAR_ip_admin }}
-          TF_VAR_ec2_public_key: ${{ secrets.EC2_PUBLIC_KEY }}
-          TF_VAR_environnement:  ${{ vars.TF_VAR_environnement }}
-          TF_VAR_type_instance:  ${{ vars.TF_VAR_type_instance }}
-          TF_VAR_aws_region:     ${{ vars.AWS_REGION }}
+          TF_VAR_ami_id:          ${{ secrets.TF_VAR_ami_id }}
+          TF_VAR_ip_admin:        ${{ secrets.TF_VAR_ip_admin }}
+          TF_VAR_environnement:   ${{ vars.TF_VAR_environnement }}
+          TF_VAR_type_instance:   ${{ vars.TF_VAR_type_instance }}
+          TF_VAR_aws_region:      ${{ vars.AWS_REGION }}
         run: terraform apply -auto-approve agricam-tfplan
 
-      - name: Afficher les outputs
-        env:
-          TF_VAR_ami_id:         ${{ secrets.TF_VAR_ami_id }}
-          TF_VAR_ip_admin:       ${{ secrets.TF_VAR_ip_admin }}
-          TF_VAR_ec2_public_key: ${{ secrets.EC2_PUBLIC_KEY }}
-          TF_VAR_environnement:  ${{ vars.TF_VAR_environnement }}
-          TF_VAR_type_instance:  ${{ vars.TF_VAR_type_instance }}
-          TF_VAR_aws_region:     ${{ vars.AWS_REGION }}
+      - name: Afficher les outputs du déploiement
         run: |
-          echo "## Déploiement AgriCam réussi !" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          terraform output >> $GITHUB_STEP_SUMMARY 2>&1 || true
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "##Déploiement AgriCam réussi !" >> $GITHUB_STEP_SUMMARY
+
 
   # ─────────────────────────────────────────────────────────────
-  # JOB 8 — DÉTECTION DE DÉRIVE (schedule nocturne)
+  # JOB 8 — DÉTECTION DE DÉRIVE (Drift Detection)
   # ─────────────────────────────────────────────────────────────
   drift-detection:
-    name: " Détection de dérive nocturne"
+    name: "Détection de dérive nocturne"
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule'
 
@@ -329,18 +322,22 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ vars.AWS_REGION }}
 
-      - name: "terraform init"
-        run: terraform init
+      - name: "terraform init — Connexion au backend S3 distant"
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -backend-config="key=agricam/${{ vars.TF_VAR_environnement }}/terraform.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="encrypt=true"
 
-      - name: Détecter la dérive
+      - name: Détecter la dérive de configuration
         id: drift
         env:
-          TF_VAR_ami_id:         ${{ secrets.TF_VAR_ami_id }}
-          TF_VAR_ip_admin:       ${{ secrets.TF_VAR_ip_admin }}
-          TF_VAR_ec2_public_key: ${{ secrets.EC2_PUBLIC_KEY }}
-          TF_VAR_environnement:  ${{ vars.TF_VAR_environnement }}
-          TF_VAR_type_instance:  ${{ vars.TF_VAR_type_instance }}
-          TF_VAR_aws_region:     ${{ vars.AWS_REGION }}
+          TF_VAR_ami_id:          ${{ secrets.TF_VAR_ami_id }}
+          TF_VAR_ip_admin:        ${{ secrets.TF_VAR_ip_admin }}
+          TF_VAR_environnement:   ${{ vars.TF_VAR_environnement }}
+          TF_VAR_type_instance:   ${{ vars.TF_VAR_type_instance }}
+          TF_VAR_aws_region:      ${{ vars.AWS_REGION }}
         run: |
           terraform plan -detailed-exitcode -refresh=true -no-color 2>&1 | tee drift-report.txt
           echo "drift_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
@@ -349,16 +346,12 @@ jobs:
       - name: Rapport de dérive
         run: |
           code="${{ steps.drift.outputs.drift_code }}"
-          echo "##  Rapport de dérive — $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
-          if [ "$code" = "0" ]; then
-            echo "Aucune dérive détectée." >> $GITHUB_STEP_SUMMARY
-          elif [ "$code" = "2" ]; then
-            echo "**DÉRIVE DÉTECTÉE** — l'infrastructure a été modifiée manuellement." >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "## Rapport de dérive — $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
+          if [ "$code" = "2" ]; then
+            echo "**DÉRIVE DÉTECTÉE !** L'infrastructure AWS a été modifiée manuellement." >> $GITHUB_STEP_SUMMARY
             cat drift-report.txt >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Échouer si dérive (déclenche notification GitHub)
+      - name: Échouer si dérive détectée
         if: steps.drift.outputs.drift_code == '2'
         run: exit 1
